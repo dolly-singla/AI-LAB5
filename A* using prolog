@@ -1,0 +1,50 @@
+edge(a,b,2).
+edge(a,c,4).
+edge(b,d,7).
+edge(b,e,3).
+edge(c,f,4).
+edge(d,g,1).
+edge(e,g,6).
+edge(f,g,2).
+
+% ----- Heuristic values -----
+h(a,10).
+h(b,8).
+h(c,7).
+h(d,3).
+h(e,4).
+h(f,2).
+h(g,0).
+
+% ----- A* entry point -----
+astar(Start, Goal, Path, Cost) :-
+    h(Start, H),
+    astar_search([node(Start, 0, H, [Start])], [], Goal, RevPath, Cost),
+    reverse(RevPath, Path).
+
+% ----- Goal reached -----
+astar_search([node(Node, G, _, Path)|_], _, Node, Path, G) :- !.
+
+astar_search([node(Node, G, _, Path)|RestOpen], Closed, Goal, FinalPath, Cost) :-
+    findall(node(Next, G1, F1, [Next|Path]),
+        ( edge(Node, Next, Step),
+          \+ member(Next, Closed),    % avoid revisiting
+          \+ member(Next, Path),      % avoid cycles
+          G1 is G + Step,
+          h(Next, H),
+          F1 is G1 + H ),
+        Children),
+    append(RestOpen, Children, TempOpen),
+    sort_nodes(TempOpen, NewOpen),
+    astar_search(NewOpen, [Node|Closed], Goal, FinalPath, Cost).
+
+% ----- Helper: sort nodes by F -----
+sort_nodes(Open, Sorted) :-
+    map_list_to_pairs(f_val, Open, Pairs),
+    keysort(Pairs, SortedPairs),
+    pairs_values(SortedPairs, Sorted).
+
+f_val(node(_, _, F, _), F).
+
+% ----- Example query -----
+% ?- astar(a, g, Path, Cost).
