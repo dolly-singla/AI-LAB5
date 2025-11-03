@@ -1,50 +1,56 @@
-edge(a,b,2).
-edge(a,c,4).
-edge(b,d,7).
-edge(b,e,3).
-edge(c,f,4).
-edge(d,g,1).
-edge(e,g,6).
-edge(f,g,2).
+initial_state([
+    on(a, table),
+    on(b, table),
+    on(c, a),
+    clear(b),
+    clear(c)
+]).
 
-% ----- Heuristic values -----
-h(a,10).
-h(b,8).
-h(c,7).
-h(d,3).
-h(e,4).
-h(f,2).
-h(g,0).
+goal_state([
+    on(a, b),
+    on(b, c)
+]).
 
-% ----- A* entry point -----
-astar(Start, Goal, Path, Cost) :-
-    h(Start, H),
-    astar_search([node(Start, 0, H, [Start])], [], Goal, RevPath, Cost),
-    reverse(RevPath, Path).
+% Move a block from X to Y
+valid_action(State, move(B, X, Y)) :-
+    member(on(B, X), State),
+    member(clear(B), State),
+    member(clear(Y), State),
+    B \= X, B \= Y, X \= Y.
 
-% ----- Goal reached -----
-astar_search([node(Node, G, _, Path)|_], _, Node, Path, G) :- !.
+apply_action(State, move(B, X, Y), NewState) :-
+    delete(State, on(B, X), S1),
+    delete(S1, clear(Y), S2),
+    append([on(B, Y), clear(X)], S2, Temp),
+    sort(Temp, NewState).
 
-astar_search([node(Node, G, _, Path)|RestOpen], Closed, Goal, FinalPath, Cost) :-
-    findall(node(Next, G1, F1, [Next|Path]),
-        ( edge(Node, Next, Step),
-          \+ member(Next, Closed),    % avoid revisiting
-          \+ member(Next, Path),      % avoid cycles
-          G1 is G + Step,
-          h(Next, H),
-          F1 is G1 + H ),
-        Children),
-    append(RestOpen, Children, TempOpen),
-    sort_nodes(TempOpen, NewOpen),
-    astar_search(NewOpen, [Node|Closed], Goal, FinalPath, Cost).
+% Move a block from X to the table
+valid_action(State, move_to_table(B, X)) :-
+    member(on(B, X), State),
+    member(clear(B), State).
 
-% ----- Helper: sort nodes by F -----
-sort_nodes(Open, Sorted) :-
-    map_list_to_pairs(f_val, Open, Pairs),
-    keysort(Pairs, SortedPairs),
-    pairs_values(SortedPairs, Sorted).
+apply_action(State, move_to_table(B, X), NewState) :-
+    delete(State, on(B, X), S1),
+    append([on(B, table), clear(X)], S1, Temp),
+    sort(Temp, NewState).
 
-f_val(node(_, _, F, _), F).
+goal_reached(State) :-
+    goal_state(Goal),
+    subset(Goal, State).
 
-% ----- Example query -----
-% ?- astar(a, g, Path, Cost).
+plan(State, [], _) :-
+    goal_reached(State),
+    !,
+    write('Goal reached!'), nl.
+
+plan(State, [Action|Rest], Visited) :-
+    valid_action(State, Action),
+    apply_action(State, Action, NewState),
+    \+ member(NewState, Visited),
+    plan(NewState, Rest, [NewState|Visited]).
+
+solve :-
+    initial_state(Init),
+    plan(Init, Plan, [Init]),
+    nl, write('Solution plan:'), nl,
+    forall(member(A, Plan), (write('  '), write(A), nl)).
